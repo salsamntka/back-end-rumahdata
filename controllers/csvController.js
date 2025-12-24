@@ -1,9 +1,23 @@
 import { pool } from "../src/db.js";
+import jwt from "jsonwebtoken";
 
 /* ======================
    GET DATA PTK
 ====================== */
 export const getPTK = async (req, res) => {
+  // 🔐 VALIDASI TOKEN
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ message: "Token tidak ditemukan" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return res.status(403).json({ message: "Token tidak valid" });
+  }
+
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 200;
@@ -22,7 +36,7 @@ export const getPTK = async (req, res) => {
 
     const [dataResult, countResult] = await Promise.all([
       pool.query(dataQuery, [limit, offset]),
-      pool.query(countQuery)
+      pool.query(countQuery),
     ]);
 
     const totalData = parseInt(countResult.rows[0].count);
@@ -33,7 +47,7 @@ export const getPTK = async (req, res) => {
       limit,
       totalData,
       totalPages,
-      data: dataResult.rows
+      data: dataResult.rows,
     });
   } catch (err) {
     console.error("PTK ERROR:", err);
@@ -45,6 +59,19 @@ export const getPTK = async (req, res) => {
    GET DATA SEKOLAH
 ====================== */
 export const getSekolah = async (req, res) => {
+  // 🔐 VALIDASI TOKEN
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ message: "Token tidak ditemukan" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return res.status(403).json({ message: "Token tidak valid" });
+  }
+
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 200;
@@ -63,7 +90,7 @@ export const getSekolah = async (req, res) => {
 
     const [dataResult, countResult] = await Promise.all([
       pool.query(dataQuery, [limit, offset]),
-      pool.query(countQuery)
+      pool.query(countQuery),
     ]);
 
     const totalData = parseInt(countResult.rows[0].count);
@@ -74,7 +101,7 @@ export const getSekolah = async (req, res) => {
       limit,
       totalData,
       totalPages,
-      data: dataResult.rows
+      data: dataResult.rows,
     });
   } catch (err) {
     console.error("SEKOLAH ERROR:", err);
