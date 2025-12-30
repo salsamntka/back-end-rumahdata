@@ -7,6 +7,7 @@ import excelRoutes from "./routes/excelRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/getUsersRoutes.js";
+import kegiatanRoutes from "./routes/kegiatanRoutes.js";
 
 import { connectDB } from "./src/db.js";
 
@@ -25,6 +26,7 @@ app.use("/api", excelRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api", userRoutes);
+app.use("/api", kegiatanRoutes);
 
 // root endpoint
 app.get("/", (req, res) => {
