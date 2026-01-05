@@ -2,7 +2,6 @@ import { pool } from "../src/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-// REGISTER = pending
 export const register = async (req, res) => {
   try {
     const { nip, nama, password, id_bidang } = req.body;
@@ -11,6 +10,7 @@ export const register = async (req, res) => {
     if (!nip || !nama || !password) {
       return res.status(400).json({ error: "NIP, nama, dan password wajib diisi" });
     }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -38,11 +38,9 @@ export const register = async (req, res) => {
   }
 };
 
-// LOGIN = approve
 export const login = async (req, res) => {
   try {
     const { nip, password } = req.body;
-
     const result = await pool.query("SELECT * FROM users WHERE nip = $1", [nip]);
 
     if (result.rows.length === 0) {
@@ -65,8 +63,6 @@ export const login = async (req, res) => {
 
     // Ambil role dari database
     const userRole = user.role;
-
-    // Buat token JWT
     const token = jwt.sign({ id: user.id, nip: user.nip, nama: user.nama, role: userRole, id_bidang: user.id_bidang, status: user.status }, process.env.JWT_SECRET, { expiresIn: "3d" });
 
     res.status(200).json({
@@ -87,7 +83,6 @@ export const login = async (req, res) => {
   }
 };
 
-// LOGOUT
 export const logout = (req, res) => {
   res.json({ message: "Logout berhasil" });
 };

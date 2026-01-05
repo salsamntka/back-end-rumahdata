@@ -5,7 +5,7 @@ const getPTK = async (req, res) => {
   //validasi token udah di middleware
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = 10;
+    const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
     const dataQuery = `
@@ -34,22 +34,9 @@ const getPTK = async (req, res) => {
 };
 
 const getSekolah = async (req, res) => {
-  // 🔐 VALIDASI TOKEN
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ message: "Token tidak ditemukan" });
-  }
-
-  const token = authHeader.split(" ")[1];
-  try {
-    jwt.verify(token, process.env.JWT_SECRET);
-  } catch (err) {
-    return res.status(403).json({ message: "Token tidak valid" });
-  }
-
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = 10;
+    const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
     const dataQuery = `
@@ -81,4 +68,32 @@ const getSekolah = async (req, res) => {
   }
 };
 
-export { getPTK, getSekolah };
+const deleteAllPtk = async (req, res) => {
+  try {
+    // Menggunakan TRUNCATE lebih cepat untuk menghapus semua data
+    await pool.query("TRUNCATE TABLE public.ptk RESTART IDENTITY CASCADE");
+
+    res.json({
+      message: "Seluruh data PTK telah berhasil dihapus dan ID telah di-reset",
+    });
+  } catch (err) {
+    console.error("DELETE ALL PTK ERROR:", err);
+    res.status(500).json({ message: "Gagal menghapus semua data PTK" });
+  }
+};
+
+const deleteAllSekolah = async (req, res) => {
+  try {
+    await pool.query("TRUNCATE TABLE public.data_sekolah RESTART IDENTITY CASCADE");
+
+    res.json({
+      message: "Seluruh data sekolah telah berhasil dihapus dan ID telah di-reset",
+    });
+  } catch (err) {
+    console.error("DELETE ALL SEKOLAH ERROR:", err);
+    res.status(500).json({ message: "Gagal menghapus semua data sekolah" });
+  }
+};
+
+// Update export
+export { getPTK, getSekolah, deleteAllPtk, deleteAllSekolah };

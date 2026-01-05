@@ -5,7 +5,6 @@ import cors from "cors";
 import csvRoutes from "./routes/csvRoutes.js";
 import excelRoutes from "./routes/excelRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
-import adminRoutes from "./routes/adminRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import kegiatanRoutes from "./routes/kegiatanRoutes.js";
 
@@ -24,7 +23,6 @@ app.use(express.json());
 app.use("/api", csvRoutes);
 app.use("/api", excelRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
 app.use("/api", userRoutes);
 app.use("/api", kegiatanRoutes);
 

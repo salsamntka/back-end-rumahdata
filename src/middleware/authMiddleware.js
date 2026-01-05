@@ -31,4 +31,13 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-export { authenticateToken };
+const superAdminOnly = (req, res, next) => {
+  if (req.user.role !== "super_admin") {
+    return res.status(403).json({
+      message: "Akses hanya untuk super admin",
+    });
+  }
+  next();
+};
+
+export { authenticateToken, superAdminOnly };
