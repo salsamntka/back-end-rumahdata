@@ -1,15 +1,9 @@
 import { pool } from "../src/db.js";
-export const tambahKegiatan = async (req, res) => {
+const addKegiatan = async (req, res) => {
   const client = await pool.connect();
 
   try {
-    const {
-      nama_kegiatan,
-      tanggal_pelaksanaan,
-      jumlah_peserta,
-      pic,
-      kelengkapan,
-    } = req.body;
+    const { nama_kegiatan, tanggal_pelaksanaan, jumlah_peserta, pic, kelengkapan } = req.body;
 
     // 🔐 dari token
     const user_id = req.user.id;
@@ -30,14 +24,7 @@ export const tambahKegiatan = async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id
       `,
-      [
-        nama_kegiatan,
-        tanggal_pelaksanaan,
-        jumlah_peserta,
-        pic,
-        user_id,
-        id_bidang,
-      ]
+      [nama_kegiatan, tanggal_pelaksanaan, jumlah_peserta, pic, user_id, id_bidang]
     );
 
     const kegiatanId = kegiatanResult.rows[0].id;
@@ -52,12 +39,7 @@ export const tambahKegiatan = async (req, res) => {
       )
       VALUES ($1, $2, $3, $4)
       `,
-      [
-        kegiatanId,
-        kelengkapan?.foto ?? false,
-        kelengkapan?.video ?? false,
-        kelengkapan?.upload_laporan ?? false,
-      ]
+      [kegiatanId, kelengkapan?.foto ?? false, kelengkapan?.video ?? false, kelengkapan?.upload_laporan ?? false]
     );
 
     await client.query("COMMIT");
@@ -73,3 +55,5 @@ export const tambahKegiatan = async (req, res) => {
     client.release();
   }
 };
+
+export { addKegiatan };

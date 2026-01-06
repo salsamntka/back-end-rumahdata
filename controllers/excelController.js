@@ -14,7 +14,7 @@ const waitFinish = (stream) =>
     stream.on("error", reject);
   });
 
-export const insertExcelToDBDataSekolah = async (req, res) => {
+const addToSekolah = async (req, res) => {
   const filePath = req.file?.path;
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
@@ -160,7 +160,7 @@ export const insertExcelToDBDataSekolah = async (req, res) => {
   }
 };
 
-export const insertExcelToDBPTK = async (req, res) => {
+const addToPtk = async (req, res) => {
   const filePath = req.file?.path;
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
@@ -309,14 +309,12 @@ export const insertExcelToDBPTK = async (req, res) => {
   }
 };
 
-export const showDataSekolahByNama = async (req, res) => {
+const sekolahByName = async (req, res) => {
   try {
     const { nama } = req.query;
 
     if (!nama) {
-      return res
-        .status(400)
-        .json({ message: 'Query parameter "nama" wajib diisi' });
+      return res.status(400).json({ message: 'Query parameter "nama" wajib diisi' });
     }
 
     const query = `
@@ -366,20 +364,4 @@ export const showDataSekolahByNama = async (req, res) => {
   }
 };
 
-export const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ message: "Token tidak ditemukan" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // info user bisa dipakai kalau perlu
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: "Token tidak valid" });
-  }
-};
+export { sekolahByName, addToPtk, addToSekolah };

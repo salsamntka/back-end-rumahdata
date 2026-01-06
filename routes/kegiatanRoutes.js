@@ -1,8 +1,8 @@
 import express from "express";
-import { tambahKegiatan } from "../controllers/kegiatanController.js";
-import { verifyToken } from "../controllers/excelController.js";
+import { addKegiatan } from "../controllers/kegiatanController.js";
+import { authenticateToken } from "../src/middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/kegiatan", verifyToken, tambahKegiatan);
+router.post("/kegiatan", authenticateToken, addKegiatan);
 export default router;
