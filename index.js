@@ -1,13 +1,10 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-
-import csvRoutes from "./routes/csvRoutes.js";
-import excelRoutes from "./routes/excelRoutes.js";
+import dataRoutes from "./routes/dataRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
-import kegiatanRoutes from "./routes/kegiatanRoutes.js";
-
 import { connectDB } from "./src/db.js";
 
 dotenv.config();
@@ -20,11 +17,10 @@ app.use(cors());
 app.use(express.json());
 
 // routes
-app.use("/api", csvRoutes);
-app.use("/api", excelRoutes);
+app.use("/api", dataRoutes);
+app.use("/api", uploadRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api", userRoutes);
-app.use("/api", kegiatanRoutes);
 
 // root endpoint
 app.get("/", (req, res) => {

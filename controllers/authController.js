@@ -2,7 +2,7 @@ import { pool } from "../src/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-export const register = async (req, res) => {
+const register = async (req, res) => {
   try {
     const { nip, nama, password, id_bidang } = req.body;
 
@@ -38,7 +38,7 @@ export const register = async (req, res) => {
   }
 };
 
-export const login = async (req, res) => {
+const login = async (req, res) => {
   try {
     const { nip, password } = req.body;
     const result = await pool.query("SELECT * FROM users WHERE nip = $1", [nip]);
@@ -83,6 +83,4 @@ export const login = async (req, res) => {
   }
 };
 
-export const logout = (req, res) => {
-  res.json({ message: "Logout berhasil" });
-};
+export { login, register };
