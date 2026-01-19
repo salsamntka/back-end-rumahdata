@@ -215,16 +215,20 @@ const searchPTK = async (req, res) => {
 
     // Query untuk data: Cek ptk_id (exact) atau nama (fuzzy)
     const dataQuery = `
-  SELECT * FROM public.ptk
-  WHERE ptk_id ILIKE $1 OR nama ILIKE $2
-  ORDER BY nama ASC
-  LIMIT $3 OFFSET $4
-`;
+      SELECT * FROM public.ptk
+      WHERE ptk_id ILIKE $1 
+         OR nama ILIKE $2 
+         OR nip ILIKE $2
+      ORDER BY nama ASC
+      LIMIT $3 OFFSET $4
+    `;
 
-    // Query untuk hitung total data agar pagination akurat
+    // 2. Update countQuery: Samakan logika WHERE-nya
     const countQuery = `
       SELECT COUNT(*) FROM public.ptk
-      WHERE LOWER(ptk_id) = LOWER($1) OR nama ILIKE $2
+      WHERE LOWER(ptk_id) = LOWER($1) 
+         OR nama ILIKE $2 
+         OR nip ILIKE $2
     `;
 
     const searchParam = `%${search}%`;
