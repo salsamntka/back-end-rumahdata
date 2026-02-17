@@ -1,9 +1,7 @@
-import XLSX from "xlsx";
 import fs from "fs";
 import path from "path";
 import { pool } from "../src/db.js";
 import ExcelJS from "exceljs";
-import jwt from "jsonwebtoken";
 import pgCopyStreams from "pg-copy-streams";
 const { from: copyFrom } = pgCopyStreams;
 
@@ -14,7 +12,7 @@ const waitFinish = (stream) =>
     stream.on("error", reject);
   });
 
-export const insertExcelToDBDataSekolah = async (req, res) => {
+const addToSekolah = async (req, res) => {
   const filePath = req.file?.path;
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
@@ -160,7 +158,7 @@ export const insertExcelToDBDataSekolah = async (req, res) => {
   }
 };
 
-export const insertExcelToDBPTK = async (req, res) => {
+const addToPtk = async (req, res) => {
   const filePath = req.file?.path;
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
@@ -309,77 +307,4 @@ export const insertExcelToDBPTK = async (req, res) => {
   }
 };
 
-export const showDataSekolahByNama = async (req, res) => {
-  try {
-    const { nama } = req.query;
-
-    if (!nama) {
-      return res
-        .status(400)
-        .json({ message: 'Query parameter "nama" wajib diisi' });
-    }
-
-    const query = `
-      SELECT 
-          s.sekolah_id,
-          s.nama AS nama_sekolah,
-          s.npsn,
-          s.alamat_jalan,
-          s.kecamatan,
-          s.kabupaten,
-          s.provinsi,
-          s.akreditasi,
-          COALESCE(
-              json_agg(
-                  json_build_object(
-                      'ptk_id', p.ptk_id,
-                      'nama', p.nama,
-                      'nip', p.nip,
-                      'jenis_kelamin', p.jenis_kelamin,
-                      'jabatan_ptk', p.jabatan_ptk,
-                      'status_keaktifan', p.status_keaktifan,
-                      'email', p.email
-                  )
-              ) FILTER (WHERE p.ptk_id IS NOT NULL), 
-              '[]'
-          ) AS daftar_ptk
-      FROM 
-          data_sekolah s
-      LEFT JOIN 
-          ptk p
-      ON 
-           LOWER(s.sekolah_id) = LOWER(p.sekolah_id)
-      WHERE 
-          s.nama ILIKE $1
-      GROUP BY 
-          s.sekolah_id, s.nama, s.npsn, s.alamat_jalan, s.kecamatan, s.kabupaten, s.provinsi, s.akreditasi
-      ORDER BY 
-          s.nama
-      LIMIT 3;
-    `;
-
-    const result = await pool.query(query, [`%${nama}%`]);
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching data:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-export const verifyToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ message: "Token tidak ditemukan" });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // info user bisa dipakai kalau perlu
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: "Token tidak valid" });
-  }
-};
+export { addToPtk, addToSekolah };

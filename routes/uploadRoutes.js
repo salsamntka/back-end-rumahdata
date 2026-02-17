@@ -1,12 +1,8 @@
 import express from "express";
 import fs from "fs";
 import multer from "multer";
-import {
-  insertExcelToDBPTK,
-  insertExcelToDBDataSekolah,
-  verifyToken,
-  showDataSekolahByNama,
-} from "../controllers/excelController.js";
+import { addToPtk, addToSekolah } from "../controllers/uploadController.js";
+import { authenticateToken } from "../src/middleware/authMiddleware.js";
 const router = express.Router();
 if (!fs.existsSync("uploads")) {
   fs.mkdirSync("uploads", { recursive: true });
@@ -27,15 +23,6 @@ const upload = multer({
   },
 });
 
-router.post("/excel/insertToPTK", upload.single("file"), insertExcelToDBPTK);
-router.post(
-  "/excel/insertToDataSekolah",
-  upload.single("file"),
-  insertExcelToDBDataSekolah
-);
-router.get(
-  "/excel/show-data-sekolah-by-nama",
-  verifyToken,
-  showDataSekolahByNama
-);
+router.post("/upload/ptk", upload.single("file"), authenticateToken, addToPtk);
+router.post("/upload/sekolah", upload.single("file"), authenticateToken, addToSekolah);
 export default router;
