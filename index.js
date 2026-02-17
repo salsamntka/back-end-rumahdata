@@ -6,6 +6,7 @@ import csvRoutes from "./routes/csvRoutes.js";
 import excelRoutes from "./routes/excelRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import splitsdataRoutes from "./routes/splitsdataRoutes.js";
 
 import { connectDB } from "./src/db.js";
 
@@ -23,6 +24,7 @@ app.use("/api", csvRoutes);
 app.use("/api", excelRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/splitsdata", splitsdataRoutes);
 
 // root endpoint
 app.get("/", (req, res) => {
