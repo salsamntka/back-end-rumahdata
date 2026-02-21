@@ -4,7 +4,9 @@ import cors from "cors";
 import dataRoutes from "./routes/dataRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
+
 import splitsdataRoutes from "./routes/splitsdataRoutes.js";
+import kegiatanRoutes from "./routes/kegiatanRoutes.js";
 
 import userRoutes from "./routes/userRoutes.js";
 import { connectDB } from "./src/db.js";
@@ -24,6 +26,7 @@ app.use("/api", uploadRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/splitsdata", splitsdataRoutes);
 app.use("/api", userRoutes);
+app.use("/api/kegiatan", kegiatanRoutes);
 
 // root endpoint
 app.get("/", (req, res) => {
