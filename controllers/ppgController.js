@@ -16,18 +16,49 @@
     /* =================================
     GET ALL
     ================================= */
-    export const getAllPPG = async (req, res) => {
+        export const getAllPPG = async (req, res) => {
     try {
-        const { rows } = await pool.query(`
-        SELECT * FROM data_ppg
-        ORDER BY nama_lengkap ASC
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+
+        const offset = (page - 1) * limit;
+        const totalResult = await pool.query(`
+        SELECT COUNT(*) FROM data_ppg
         `);
 
-        res.json(rows);
+        const totalData = parseInt(totalResult.rows[0].count);
+        const totalPage = Math.ceil(totalData / limit);
+
+        /* ======================
+        DATA PAGINATION
+        ====================== */
+        const { rows } = await pool.query(
+        `
+        SELECT *
+        FROM data_ppg
+        ORDER BY no::INTEGER ASC
+        LIMIT $1 OFFSET $2
+        `,
+        [limit, offset]
+        );
+
+        /* ======================
+        RESPONSE
+        ====================== */
+        res.json({
+        data: rows,
+        pagination: {
+            page,
+            limit,
+            totalData,
+            totalPage,
+        },
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
     };
+
 
     /* =================================
     SEARCH
