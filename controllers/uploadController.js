@@ -24,13 +24,9 @@ function extractValue(cell) {
     if (raw.richText) {
       return raw.richText.map(r => r.text).join("");
     }
-    if (raw.text) {
-      return raw.text;
-    }
-    if (raw.result) {
-      return raw.result;
-    }
-    return String(raw);
+    if (raw.text) return raw.text;
+    if (raw.result) return raw.result;
+    return "";
   }
 
   return String(raw);
@@ -339,119 +335,89 @@ export const addToPeserta = async (req, res) => {
     return res.status(400).json({ message: "File wajib diupload" });
   }
 
-  if (!kegiatan_id) {
-    return res.status(400).json({ message: "kegiatan_id wajib diisi" });
-  }
-
-  const ext = path.extname(req.file.originalname).toLowerCase();
+  const ext = path.extname(filePath).toLowerCase();
   const client = await pool.connect();
-  const tempCsv = ext === ".xlsx" ? filePath + ".csv" : filePath;
 
   try {
-    /* =========================
-       1. XLSX → CSV (STREAM SAFE)
-    ========================= */
-    if (ext === ".xlsx") {
-      const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
-      const csv = fs.createWriteStream(tempCsv);
-
-      for await (const sheet of workbook) {
-        let headers = [];
-
-        for await (const row of sheet) {
-
-          // HEADER
-          if (row.number === 1) {
-            headers = row.values
-              .slice(1)
-              .map(h => String(h || "").trim());
-
-            csv.write(headers.join(",") + ",kegiatan_id\n");
-            continue;
-          }
-
-          // DATA
-          const line = headers.map((_, i) => {
-            const cell = row.getCell(i + 1);
-            const value = extractValue(cell);
-
-            return `"${value.replace(/"/g, '""')}"`;
-          }).join(",");
-
-          csv.write(line + `,"${kegiatan_id}"\n`);
-        }
-
-        break; // hanya sheet pertama
-      }
-
-      csv.end();
-      await waitFinish(csv);
-    }
-
-    /* =========================
-       2. COPY KE TEMP TABLE
-    ========================= */
     await client.query("BEGIN");
 
-    await client.query(`
-      CREATE TEMP TABLE peserta_staging (
-        nama text,
-        kabupaten text,
-        instansi text,
-        jabatan text,
-        alamat text
-      )
-    `);
+    let rows = [];
 
-    const copyStream = client.query(
-  copyFrom(`
-    COPY peserta_staging (nama, kabupaten, instansi, jabatan, alamat)
-    FROM STDIN
-    WITH (
-      FORMAT csv,
-      HEADER true,
-      DELIMITER ';',
-      ENCODING 'UTF8'
-    )
-  `)
-);
+    /* ======================
+       HANDLE XLSX (STABIL)
+    ====================== */
+    if (ext === ".xlsx") {
 
-    fs.createReadStream(tempCsv).pipe(copyStream);
-    await waitFinish(copyStream);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(filePath);
 
-    /* =========================
-       3. INSERT KE TABEL PESERTA
-    ========================= */
-    await client.query(`
-    INSERT INTO peserta (nama, kabupaten, instansi, jabatan, alamat, kegiatan_id)
-    SELECT 
-      TRIM(nama),
-      TRIM(kabupaten),
-      TRIM(instansi),
-      TRIM(jabatan),
-      TRIM(alamat),
-      $1
-    FROM peserta_staging
-  `, [kegiatan_id]);
+      const worksheet = workbook.worksheets[0];
+
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // skip header
+
+        rows.push([
+          row.getCell(1).text || "",
+          row.getCell(2).text || "",
+          row.getCell(3).text || "",
+          row.getCell(4).text || "",
+          row.getCell(5).text || "",
+          kegiatan_id
+        ]);
+      });
+    }
+
+    /* ======================
+       HANDLE CSV (STABIL)
+    ====================== */
+    else if (ext === ".csv") {
+
+      const raw = fs.readFileSync(filePath, "utf8");
+
+      const lines = raw.split(/\r?\n/).filter(l => l.trim() !== "");
+
+      // deteksi delimiter
+      const delimiter = lines[0].includes(";") ? ";" : ",";
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(delimiter);
+
+        rows.push([
+          cols[0] || "",
+          cols[1] || "",
+          cols[2] || "",
+          cols[3] || "",
+          cols[4] || "",
+          kegiatan_id
+        ]);
+      }
+    }
+
+    else {
+      return res.status(400).json({ message: "Format tidak didukung" });
+    }
+
+    /* ======================
+       INSERT KE DATABASE
+    ====================== */
+
+    for (const r of rows) {
+      await client.query(
+        `INSERT INTO peserta
+        (nama, kabupaten, instansi, jabatan, alamat, kegiatan_id)
+        VALUES ($1,$2,$3,$4,$5,$6)`,
+        r
+      );
+    }
 
     await client.query("COMMIT");
 
-    /* =========================
-       4. CLEAN FILE
-    ========================= */
-    fs.existsSync(filePath) && fs.unlinkSync(filePath);
-    ext === ".xlsx" && fs.existsSync(tempCsv) && fs.unlinkSync(tempCsv);
-
-    res.json({
-      message: "Upload peserta berhasil (COPY)",
+    res.status(200).json({
+      message: `Berhasil upload ${rows.length} data`
     });
 
   } catch (err) {
     await client.query("ROLLBACK");
-
-    fs.existsSync(filePath) && fs.unlinkSync(filePath);
-    ext === ".xlsx" && fs.existsSync(tempCsv) && fs.unlinkSync(tempCsv);
-
     console.error(err);
     res.status(500).json({ message: err.message });
   } finally {
