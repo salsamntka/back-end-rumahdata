@@ -3,6 +3,7 @@ import path from "path";
 import { pool } from "../src/db.js";
 import ExcelJS from "exceljs";
 import pgCopyStreams from "pg-copy-streams";
+import readline from "readline";
 const { from: copyFrom } = pgCopyStreams;
 
 /* helper */
@@ -22,7 +23,7 @@ function extractValue(cell) {
 
   if (typeof raw === "object") {
     if (raw.richText) {
-      return raw.richText.map(r => r.text).join("");
+      return raw.richText.map((r) => r.text).join("");
     }
     if (raw.text) {
       return raw.text;
@@ -36,7 +37,7 @@ function extractValue(cell) {
   return String(raw);
 }
 
-const addToSekolah = async (req, res) => {
+const uploadSekolah = async (req, res) => {
   const filePath = req.file?.path;
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
@@ -96,7 +97,7 @@ const addToSekolah = async (req, res) => {
         COPY data_sekolah_staging
         FROM STDIN
         WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
-      `)
+      `),
     );
 
     fs.createReadStream(tempCsv).pipe(copyStream);
@@ -182,7 +183,7 @@ const addToSekolah = async (req, res) => {
   }
 };
 
-const addToPtk = async (req, res) => {
+const uploadPtk = async (req, res) => {
   const filePath = req.file?.path;
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
@@ -241,7 +242,7 @@ const addToPtk = async (req, res) => {
         COPY ptk_staging
         FROM STDIN
         WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
-      `)
+      `),
     );
 
     fs.createReadStream(tempCsv).pipe(copyStream);
@@ -331,15 +332,15 @@ const addToPtk = async (req, res) => {
   }
 };
 
-const addToPeserta = async (req, res) => {
+const uploadPeserta = async (req, res) => {
   const filePath = req.file?.path;
   const kegiatan_id = req.body.kegiatan_id;
 
   if (!filePath) {
     return res.status(400).json({ message: "File wajib diupload" });
   }
-
   if (!kegiatan_id) {
+    fs.unlinkSync(filePath);
     return res.status(400).json({ message: "kegiatan_id wajib diisi" });
   }
 
@@ -347,9 +348,12 @@ const addToPeserta = async (req, res) => {
   const client = await pool.connect();
   const tempCsv = ext === ".xlsx" ? filePath + ".csv" : filePath;
 
+  // Siapkan variabel delimiter, default koma
+  let delimiter = ",";
+
   try {
     /* =========================
-       1. XLSX → CSV (STREAM SAFE)
+       1. DETEKSI CSV / CONVERT XLSX
     ========================= */
     if (ext === ".xlsx") {
       const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
@@ -357,82 +361,73 @@ const addToPeserta = async (req, res) => {
 
       for await (const sheet of workbook) {
         let headers = [];
-
         for await (const row of sheet) {
-
-          // HEADER
           if (row.number === 1) {
-            headers = row.values
-              .slice(1)
-              .map(h => String(h || "").trim());
-
-            csv.write(headers.join(",") + ",kegiatan_id\n");
+            headers = row.values.slice(1).map((h) =>
+              String(h || "")
+                .trim()
+                .toLowerCase(),
+            );
+            csv.write(headers.join(",") + "\n");
             continue;
           }
 
-          // DATA
-          const line = headers.map((_, i) => {
-            const cell = row.getCell(i + 1);
-            const value = extractValue(cell);
+          const line = headers
+            .map((_, i) => {
+              const cell = row.getCell(i + 1).value ?? "";
+              return `"${String(cell).replace(/"/g, '""').trim()}"`;
+            })
+            .join(",");
 
-            return `"${value.replace(/"/g, '""')}"`;
-          }).join(",");
-
-          csv.write(line + `,"${kegiatan_id}"\n`);
+          csv.write(line + "\n");
         }
-
-        break; // hanya sheet pertama
+        break;
       }
-
       csv.end();
       await waitFinish(csv);
+    } else {
+      // Jika file asli CSV, intip baris pertamanya untuk cek delimiter
+      const rl = readline.createInterface({ input: fs.createReadStream(filePath) });
+      for await (const line of rl) {
+        if (line.includes(";")) {
+          delimiter = ";";
+        }
+        break; // Cukup baca baris pertama lalu hentikan loop
+      }
     }
 
     /* =========================
-       2. COPY KE TEMP TABLE
+       2. COPY → STAGING TABLE
     ========================= */
     await client.query("BEGIN");
 
     await client.query(`
+      DROP TABLE IF EXISTS peserta_staging;
       CREATE TEMP TABLE peserta_staging (
-        nama text,
-        kabupaten text,
-        instansi text,
-        jabatan text,
-        alamat text
+        nama text, kabupaten text, instansi text, jabatan text, alamat text
       )
     `);
 
+    // Masukkan delimiter dinamis ke perintah COPY
     const copyStream = client.query(
-  copyFrom(`
-    COPY peserta_staging (nama, kabupaten, instansi, jabatan, alamat)
-    FROM STDIN
-    WITH (
-      FORMAT csv,
-      HEADER true,
-      DELIMITER ';',
-      ENCODING 'UTF8'
-    )
-  `)
-);
+      copyFrom(`
+        COPY peserta_staging (nama, kabupaten, instansi, jabatan, alamat)
+        FROM STDIN WITH (FORMAT csv, HEADER true, ENCODING 'UTF8', DELIMITER '${delimiter}')
+      `),
+    );
 
     fs.createReadStream(tempCsv).pipe(copyStream);
     await waitFinish(copyStream);
 
     /* =========================
-       3. INSERT KE TABEL PESERTA
+       3. INSERT KE TABEL UTAMA
     ========================= */
-    await client.query(`
-    INSERT INTO peserta (nama, kabupaten, instansi, jabatan, alamat, kegiatan_id)
-    SELECT 
-      TRIM(nama),
-      TRIM(kabupaten),
-      TRIM(instansi),
-      TRIM(jabatan),
-      TRIM(alamat),
-      $1
-    FROM peserta_staging
-  `, [kegiatan_id]);
+    await client.query(
+      `INSERT INTO peserta (nama, kabupaten, instansi, jabatan, alamat, kegiatan_id)
+       SELECT TRIM(nama), TRIM(kabupaten), TRIM(instansi), TRIM(jabatan), TRIM(alamat), $1 
+       FROM peserta_staging`,
+      [kegiatan_id],
+    );
 
     await client.query("COMMIT");
 
@@ -442,97 +437,84 @@ const addToPeserta = async (req, res) => {
     fs.existsSync(filePath) && fs.unlinkSync(filePath);
     ext === ".xlsx" && fs.existsSync(tempCsv) && fs.unlinkSync(tempCsv);
 
-    res.json({
-      message: "Upload peserta berhasil (COPY)",
-    });
-
+    res.json({ message: "Upload peserta berhasil (XLSX/CSV)" });
   } catch (err) {
     await client.query("ROLLBACK");
+    console.error("UPLOAD ERROR:", err);
 
     fs.existsSync(filePath) && fs.unlinkSync(filePath);
     ext === ".xlsx" && fs.existsSync(tempCsv) && fs.unlinkSync(tempCsv);
 
-    console.error(err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: "Gagal memproses file: " + err.message });
   } finally {
     client.release();
   }
 };
 
-    /* =================================
-    UPLOAD PPG
-    ================================= */
-    const addtoPPG = async (req, res) => {
-    const filePath = req.file?.path;
+const uploadPpg = async (req, res) => {
+  const filePath = req.file?.path;
 
-    if (!filePath)
-        return res.status(400).json({ message: "File wajib diupload" });
+  if (!filePath) return res.status(400).json({ message: "File wajib diupload" });
 
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    const client = await pool.connect();
-    const tempCsv = ext === ".xlsx" ? filePath + ".csv" : filePath;
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const client = await pool.connect();
+  const tempCsv = ext === ".xlsx" ? filePath + ".csv" : filePath;
 
-    try {
-        /* XLSX → CSV */
-        if (ext === ".xlsx") {
-        const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
-        const csv = fs.createWriteStream(tempCsv);
+  try {
+    /* XLSX → CSV */
+    if (ext === ".xlsx") {
+      const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
+      const csv = fs.createWriteStream(tempCsv);
 
-        for await (const sheet of workbook) {
-            let headers = [];
+      for await (const sheet of workbook) {
+        let headers = [];
 
-            for await (const row of sheet) {
-            if (row.number === 1) {
-                headers = row.values
-                .slice(1)
-                .map((h) =>
-                    String(h)
-                    .toLowerCase()
-                    .replace(/\s+/g, "_")
-                );
+        for await (const row of sheet) {
+          if (row.number === 1) {
+            headers = row.values.slice(1).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
 
-                csv.write(headers.join(",") + "\n");
-                continue;
-            }
+            csv.write(headers.join(",") + "\n");
+            continue;
+          }
 
-            const line = headers
-                .map((_, i) => {
-                const cell = row.getCell(i + 1).value ?? "";
-                return `"${String(cell).replace(/"/g, '""')}"`;
-                })
-                .join(",");
+          const line = headers
+            .map((_, i) => {
+              const cell = row.getCell(i + 1).value ?? "";
+              return `"${String(cell).replace(/"/g, '""')}"`;
+            })
+            .join(",");
 
-            csv.write(line + "\n");
-            }
-            break;
+          csv.write(line + "\n");
         }
+        break;
+      }
 
-        csv.end();
-        await waitFinish(csv);
-        }
+      csv.end();
+      await waitFinish(csv);
+    }
 
-        /* COPY */
-        await client.query("BEGIN");
+    /* COPY */
+    await client.query("BEGIN");
 
-        await client.query(`
+    await client.query(`
         CREATE TEMP TABLE ppg_staging
-        (LIKE data_ppg INCLUDING DEFAULTS)
+        (LIKE ppg INCLUDING DEFAULTS)
         `);
 
-        const copyStream = client.query(
-        copyFrom(`
+    const copyStream = client.query(
+      copyFrom(`
             COPY ppg_staging
             FROM STDIN
             WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
-        `)
-        );
+        `),
+    );
 
-        fs.createReadStream(tempCsv).pipe(copyStream);
-        await waitFinish(copyStream);
+    fs.createReadStream(tempCsv).pipe(copyStream);
+    await waitFinish(copyStream);
 
-        /* UPSERT */
-        await client.query(`
-        INSERT INTO data_ppg
+    /* UPSERT */
+    await client.query(`
+        INSERT INTO ppg
         SELECT DISTINCT ON (no_ukg) *
         FROM ppg_staging
         ORDER BY no_ukg
@@ -558,18 +540,169 @@ const addToPeserta = async (req, res) => {
             tahap                     = EXCLUDED.tahap
         `);
 
-        await client.query("COMMIT");
+    await client.query("COMMIT");
 
-        fs.unlinkSync(filePath);
-        ext === ".xlsx" && fs.unlinkSync(tempCsv);
+    fs.unlinkSync(filePath);
+    ext === ".xlsx" && fs.unlinkSync(tempCsv);
 
-        res.json({ message: "Upload data PPG berhasil" });
-    } catch (err) {
-        await client.query("ROLLBACK");
-        res.status(500).json({ message: err.message });
-    } finally {
-        client.release();
+    res.json({ message: "Upload data PPG berhasil" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+const uploadKegiatan = async (req, res) => {
+  const filePath = req.file?.path;
+
+  if (!filePath) {
+    return res.status(400).json({ message: "File wajib diupload" });
+  }
+
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const client = await pool.connect();
+  const tempCsv = ext === ".xlsx" ? filePath + ".csv" : filePath;
+
+  try {
+    /* =========================
+       1️⃣ XLSX → CSV (STREAM)
+    ========================= */
+    if (ext === ".xlsx") {
+      const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
+      const csv = fs.createWriteStream(tempCsv);
+
+      for await (const sheet of workbook) {
+        let headers = [];
+
+        for await (const row of sheet) {
+          if (row.number === 1) {
+            headers = row.values.slice(1);
+            csv.write(headers.join(",") + "\n");
+            continue;
+          }
+
+          const line = headers
+            .map((_, i) => {
+              const cell = row.getCell(i + 1).value ?? "";
+              return `"${String(cell).replace(/"/g, '""').trim()}"`;
+            })
+            .join(",");
+
+          csv.write(line + "\n");
+        }
+        break;
+      }
+
+      csv.end();
+      await waitFinish(csv);
     }
-    };
 
-export { addToPtk, addToSekolah, addToPeserta, addtoPPG };
+    /* =========================
+       2️⃣ COPY → STAGING TABLE
+    ========================= */
+    await client.query("BEGIN");
+
+    await client.query(`
+      DROP TABLE IF EXISTS kegiatan_staging;
+      CREATE TEMP TABLE kegiatan_staging
+      (
+        nama_kegiatan TEXT,
+        tempat_pelaksanaan TEXT,
+        sasaran_peserta TEXT,
+        total_peserta TEXT,
+        tanggal_pelaksanaan TEXT,
+        jenjang_peserta TEXT,
+        pendidikan_terakhir TEXT
+      )
+    `);
+
+    const copyStream = client.query(
+      copyFrom(`
+        COPY kegiatan_staging
+        FROM STDIN
+        WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
+      `),
+    );
+
+    fs.createReadStream(tempCsv).pipe(copyStream);
+    await waitFinish(copyStream);
+
+    /* =========================
+       3️⃣ INSERT KE kegiatan (SMART DATE HANDLER)
+    ========================= */
+    await client.query(
+      `
+      INSERT INTO kegiatan (
+        users_id,
+        nama_kegiatan,
+        tempat_pelaksanaan,
+        sasaran_peserta,
+        total_peserta,
+        tanggal_pelaksanaan,
+        jenjang_peserta,
+        pendidikan_terakhir,
+        created_at,
+        updated_at
+      )
+      SELECT
+        $1,
+        TRIM(nama_kegiatan),
+        TRIM(tempat_pelaksanaan),
+        NULLIF(TRIM(sasaran_peserta), '')::INT,
+        NULLIF(TRIM(total_peserta), '')::INT,
+
+        (
+          CASE
+            -- Excel serial number
+            WHEN TRIM(tanggal_pelaksanaan) ~ '^[0-9]+$'
+              THEN DATE '1899-12-30' + TRIM(tanggal_pelaksanaan)::INT
+
+            -- kosong
+            WHEN TRIM(tanggal_pelaksanaan) = ''
+              THEN NULL
+
+            -- ISO date string (YYYY-MM-DD)
+            WHEN TRIM(tanggal_pelaksanaan) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+              THEN TRIM(tanggal_pelaksanaan)::DATE
+
+            -- fallback aman
+            ELSE NULL
+          END
+        )::DATE,
+
+        TRIM(jenjang_peserta),
+        TRIM(pendidikan_terakhir),
+        NOW(),
+        NOW()
+      FROM kegiatan_staging
+      `,
+      [req.user.id],
+    );
+
+    await client.query("COMMIT");
+
+    /* =========================
+       4️⃣ CLEAN FILE
+    ========================= */
+    fs.existsSync(filePath) && fs.unlinkSync(filePath);
+    ext === ".xlsx" && fs.existsSync(tempCsv) && fs.unlinkSync(tempCsv);
+
+    res.json({
+      message: "Upload berhasil",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+
+    fs.existsSync(filePath) && fs.unlinkSync(filePath);
+    ext === ".xlsx" && fs.existsSync(tempCsv) && fs.unlinkSync(tempCsv);
+
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+export { uploadPtk, uploadSekolah, uploadPeserta, uploadPpg, uploadKegiatan };
