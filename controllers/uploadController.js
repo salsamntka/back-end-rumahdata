@@ -614,11 +614,6 @@ const uploadKegiatan = async (req, res) => {
       CREATE TEMP TABLE kegiatan_staging
       (
         nama_kegiatan TEXT,
-        tempat_pelaksanaan TEXT,
-        sasaran_peserta TEXT,
-        total_peserta TEXT,
-        jenjang_peserta TEXT,
-        pendidikan_terakhir TEXT,
         tanggal_mulai TEXT,
         tanggal_selesai TEXT,
         penanggung_jawab TEXT,
@@ -646,11 +641,6 @@ const uploadKegiatan = async (req, res) => {
       INSERT INTO kegiatan (
         users_id,
         nama_kegiatan,
-        tempat_pelaksanaan,
-        sasaran_peserta,
-        total_peserta,
-        jenjang_peserta,
-        pendidikan_terakhir,
         tanggal_mulai,
         tanggal_selesai,
         penanggung_jawab,
@@ -662,11 +652,6 @@ const uploadKegiatan = async (req, res) => {
       SELECT
         $1,
         TRIM(nama_kegiatan),
-        TRIM(tempat_pelaksanaan),
-        NULLIF(TRIM(sasaran_peserta), '')::INT,
-        NULLIF(TRIM(total_peserta), '')::INT,
-        TRIM(jenjang_peserta),
-        TRIM(pendidikan_terakhir),
         (
           CASE
             -- Excel serial number
