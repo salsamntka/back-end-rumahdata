@@ -30,7 +30,10 @@ export const splitsData = async (req, res) => {
     res.on("finish", cleanup);
 
     res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", `attachment; filename=${originalName}_split.zip`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=${originalName}_split.zip`,
+    );
 
     const archive = archiver("zip", { zlib: { level: 1 } });
     archive.pipe(res);
@@ -63,7 +66,9 @@ export const splitsData = async (req, res) => {
         csvStringifier = stringify({ header: true, columns: headers });
         csvStringifier.pipe(currentPassThrough);
       } else {
-        workbookWriter = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: currentPassThrough });
+        workbookWriter = new ExcelJS.stream.xlsx.WorkbookWriter({
+          stream: currentPassThrough,
+        });
         worksheetWriter = workbookWriter.addWorksheet("Sheet1");
         worksheetWriter.addRow(headers).commit();
       }
@@ -72,7 +77,9 @@ export const splitsData = async (req, res) => {
 
     // LOGIKA PEMBACAAN (STREAMING)
     if (fileExtension === ".csv") {
-      const parser = fs.createReadStream(filePath).pipe(parse({ columns: false }));
+      const parser = fs
+        .createReadStream(filePath)
+        .pipe(parse({ columns: false }));
 
       for await (const row of parser) {
         if (rowCount === 0) {
