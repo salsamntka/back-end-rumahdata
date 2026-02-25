@@ -16,7 +16,10 @@ const getPTK = async (req, res) => {
     `;
 
     const countQuery = `SELECT COUNT(*) FROM public.ptk`;
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [limit, offset]), pool.query(countQuery)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [limit, offset]),
+      pool.query(countQuery),
+    ]);
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
 
@@ -61,7 +64,10 @@ const searchPTK = async (req, res) => {
     const searchParam = `%${search}%`;
     const values = [search, searchParam];
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [...values, limit, offset]), pool.query(countQuery, values)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [...values, limit, offset]),
+      pool.query(countQuery, values),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -111,7 +117,10 @@ const getSekolah = async (req, res) => {
       SELECT COUNT(*) FROM public.data_sekolah
     `;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [limit, offset]), pool.query(countQuery)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [limit, offset]),
+      pool.query(countQuery),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -131,10 +140,13 @@ const getSekolah = async (req, res) => {
 
 const deleteAllSekolah = async (req, res) => {
   try {
-    await pool.query("TRUNCATE TABLE public.data_sekolah RESTART IDENTITY CASCADE");
+    await pool.query(
+      "TRUNCATE TABLE public.data_sekolah RESTART IDENTITY CASCADE",
+    );
 
     res.json({
-      message: "Seluruh data sekolah telah berhasil dihapus dan ID telah di-reset",
+      message:
+        "Seluruh data sekolah telah berhasil dihapus dan ID telah di-reset",
     });
   } catch (err) {
     console.error("DELETE ALL SEKOLAH ERROR:", err);
@@ -164,7 +176,10 @@ const searchSekolah = async (req, res) => {
     const searchParam = `%${search}%`;
     const values = [search, searchParam];
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [...values, limit, offset]), pool.query(countQuery, values)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [...values, limit, offset]),
+      pool.query(countQuery, values),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -199,7 +214,12 @@ const getSekolahDetail = async (req, res) => {
       return res.status(404).json({ message: "Sekolah tidak ditemukan" });
     }
 
-    const { nama: namaSekolah, npsn: npsnSekolah, alamat_jalan, email } = sekolahRes.rows[0];
+    const {
+      nama: namaSekolah,
+      npsn: npsnSekolah,
+      alamat_jalan,
+      email,
+    } = sekolahRes.rows[0];
 
     // 2. Query Seluruh Data PTK tanpa LIMIT dan OFFSET
     const dataQuery = `
@@ -259,7 +279,10 @@ const getAllPeserta = async (req, res) => {
 
     const countQuery = `SELECT COUNT(*) FROM public.peserta`;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [limit, offset]), pool.query(countQuery)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [limit, offset]),
+      pool.query(countQuery),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -322,7 +345,10 @@ const searchPeserta = async (req, res) => {
 
     const searchParam = `%${search}%`;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [searchParam, limit, offset]), pool.query(countQuery, [searchParam])]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [searchParam, limit, offset]),
+      pool.query(countQuery, [searchParam]),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -344,7 +370,10 @@ const deletePeserta = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query("DELETE FROM public.peserta WHERE peserta_id = $1 RETURNING *", [id]);
+    const result = await pool.query(
+      "DELETE FROM public.peserta WHERE peserta_id = $1 RETURNING *",
+      [id],
+    );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "Peserta tidak ditemukan" });
@@ -406,7 +435,10 @@ const getAllPPG = async (req, res) => {
 
     const countQuery = `SELECT COUNT(*) FROM public.ppg`;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [limit, offset]), pool.query(countQuery)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [limit, offset]),
+      pool.query(countQuery),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -446,7 +478,10 @@ const searchPPG = async (req, res) => {
 
     const searchParam = `%${search.trim()}%`;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [searchParam, limit, offset]), pool.query(countQuery, [searchParam])]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [searchParam, limit, offset]),
+      pool.query(countQuery, [searchParam]),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -500,7 +535,20 @@ const insertKegiatan = async (req, res) => {
       });
     }
 
-    const { nama_kegiatan, tempat_pelaksanaan, sasaran_peserta, total_peserta, tanggal_pelaksanaan, jenjang_peserta, pendidikan_terakhir } = req.body;
+    const {
+      nama_kegiatan,
+      tempat_pelaksanaan,
+      sasaran_peserta,
+      total_peserta,
+      tanggal_pelaksanaan,
+      jenjang_peserta,
+      pendidikan_terakhir,
+      tanggal_mulai,
+      tanggal_selesai,
+      penanggung_jawab,
+      tim,
+      tahun,
+    } = req.body;
 
     const parsedSasaran = parseInt(sasaran_peserta);
     const parsedTotal = parseInt(total_peserta);
@@ -513,10 +561,23 @@ const insertKegiatan = async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO public.kegiatan
-       (users_id, nama_kegiatan, tempat_pelaksanaan, sasaran_peserta, total_peserta, tanggal_pelaksanaan, jenjang_peserta, pendidikan_terakhir)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       (users_id, nama_kegiatan, tempat_pelaksanaan, sasaran_peserta, total_peserta, tanggal_mulai, tanggal_selesai, jenjang_peserta, pendidikan_terakhir, penanggung_jawab, tim, tahun)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
        RETURNING *`,
-      [users_id, nama_kegiatan, tempat_pelaksanaan, parsedSasaran, parsedTotal, tanggal_pelaksanaan, jenjang_peserta, pendidikan_terakhir],
+      [
+        users_id,
+        nama_kegiatan,
+        tempat_pelaksanaan,
+        parsedSasaran,
+        parsedTotal,
+        tanggal_mulai,
+        tanggal_selesai,
+        jenjang_peserta,
+        pendidikan_terakhir,
+        penanggung_jawab,
+        tim,
+        tahun,
+      ],
     );
 
     res.status(201).json({
@@ -539,12 +600,11 @@ const getAllKegiatan = async (req, res) => {
       SELECT 
         k.id,
         k.nama_kegiatan,
-        k.tempat_pelaksanaan,
-        k.sasaran_peserta,
-        k.total_peserta,
-        k.tanggal_pelaksanaan,
-        k.jenjang_peserta,
-        k.pendidikan_terakhir,
+        k.tanggal_mulai,
+        k.tanggal_selesai,
+        k.penanggung_jawab,
+        k.tim,
+        k.tahun,
         k.created_at,
         u.nama AS created_by
       FROM public.kegiatan k
@@ -555,7 +615,10 @@ const getAllKegiatan = async (req, res) => {
 
     const countQuery = `SELECT COUNT(*) FROM public.kegiatan`;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [limit, offset]), pool.query(countQuery)]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [limit, offset]),
+      pool.query(countQuery),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -585,12 +648,11 @@ const getKegiatanById = async (req, res) => {
       SELECT 
         k.id,
         k.nama_kegiatan,
-        k.tempat_pelaksanaan,
-        k.sasaran_peserta,
-        k.total_peserta,
-        k.tanggal_pelaksanaan,
-        k.jenjang_peserta,
-        k.pendidikan_terakhir,
+        k.tanggal_mulai,
+        k.tanggal_selesai,
+        k.penanggung_jawab,
+        k.tim,
+        k.tahun,
         k.created_at,
         u.nama AS created_by
       FROM public.kegiatan k
@@ -622,12 +684,11 @@ const searchKegiatanByName = async (req, res) => {
       SELECT 
         k.id,
         k.nama_kegiatan,
-        k.tempat_pelaksanaan,
-        k.sasaran_peserta,
-        k.total_peserta,
-        k.tanggal_pelaksanaan,
-        k.jenjang_peserta,
-        k.pendidikan_terakhir,
+        k.tanggal_mulai,
+        k.tanggal_selesai,
+        k.penanggung_jawab,
+        k.tim,
+        k.tahun,
         k.created_at,
         u.nama AS created_by
       FROM public.kegiatan k
@@ -645,7 +706,10 @@ const searchKegiatanByName = async (req, res) => {
 
     const searchParam = `%${search.trim()}%`;
 
-    const [dataResult, countResult] = await Promise.all([pool.query(dataQuery, [searchParam, limit, offset]), pool.query(countQuery, [searchParam])]);
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [searchParam, limit, offset]),
+      pool.query(countQuery, [searchParam]),
+    ]);
 
     const totalData = parseInt(countResult.rows[0].count);
     const totalPages = Math.ceil(totalData / limit);
@@ -673,7 +737,9 @@ const deleteKegiatanById = async (req, res) => {
 
     const role = req.user.role;
     if (role !== "admin") {
-      return res.status(403).json({ message: "Tidak punya akses menghapus kegiatan" });
+      return res
+        .status(403)
+        .json({ message: "Tidak punya akses menghapus kegiatan" });
     }
 
     const deleteQuery = `
@@ -701,7 +767,9 @@ const deleteAllKegiatan = async (req, res) => {
 
     // 1. Validasi Role (Admin & Super Admin)
     if (role !== "admin" && role !== "super admin") {
-      return res.status(403).json({ message: "Akses ini hanya untuk admin dan super admin" });
+      return res
+        .status(403)
+        .json({ message: "Akses ini hanya untuk admin dan super admin" });
     }
 
     // 2. Cek apakah data sudah kosong sebelum TRUNCATE

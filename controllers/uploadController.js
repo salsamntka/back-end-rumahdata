@@ -387,7 +387,9 @@ const uploadPeserta = async (req, res) => {
       await waitFinish(csv);
     } else {
       // Jika file asli CSV, intip baris pertamanya untuk cek delimiter
-      const rl = readline.createInterface({ input: fs.createReadStream(filePath) });
+      const rl = readline.createInterface({
+        input: fs.createReadStream(filePath),
+      });
       for await (const line of rl) {
         if (line.includes(";")) {
           delimiter = ";";
@@ -454,7 +456,8 @@ const uploadPeserta = async (req, res) => {
 const uploadPpg = async (req, res) => {
   const filePath = req.file?.path;
 
-  if (!filePath) return res.status(400).json({ message: "File wajib diupload" });
+  if (!filePath)
+    return res.status(400).json({ message: "File wajib diupload" });
 
   const ext = path.extname(req.file.originalname).toLowerCase();
   const client = await pool.connect();
@@ -471,7 +474,9 @@ const uploadPpg = async (req, res) => {
 
         for await (const row of sheet) {
           if (row.number === 1) {
-            headers = row.values.slice(1).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
+            headers = row.values
+              .slice(1)
+              .map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
 
             csv.write(headers.join(",") + "\n");
             continue;
@@ -609,12 +614,11 @@ const uploadKegiatan = async (req, res) => {
       CREATE TEMP TABLE kegiatan_staging
       (
         nama_kegiatan TEXT,
-        tempat_pelaksanaan TEXT,
-        sasaran_peserta TEXT,
-        total_peserta TEXT,
-        tanggal_pelaksanaan TEXT,
-        jenjang_peserta TEXT,
-        pendidikan_terakhir TEXT
+        tanggal_mulai TEXT,
+        tanggal_selesai TEXT,
+        penanggung_jawab TEXT,
+        tim TEXT,
+        tahun TEXT
       )
     `);
 
@@ -637,43 +641,56 @@ const uploadKegiatan = async (req, res) => {
       INSERT INTO kegiatan (
         users_id,
         nama_kegiatan,
-        tempat_pelaksanaan,
-        sasaran_peserta,
-        total_peserta,
-        tanggal_pelaksanaan,
-        jenjang_peserta,
-        pendidikan_terakhir,
+        tanggal_mulai,
+        tanggal_selesai,
+        penanggung_jawab,
+        tim,
+        tahun,
         created_at,
         updated_at
       )
       SELECT
         $1,
         TRIM(nama_kegiatan),
-        TRIM(tempat_pelaksanaan),
-        NULLIF(TRIM(sasaran_peserta), '')::INT,
-        NULLIF(TRIM(total_peserta), '')::INT,
-
         (
           CASE
             -- Excel serial number
-            WHEN TRIM(tanggal_pelaksanaan) ~ '^[0-9]+$'
-              THEN DATE '1899-12-30' + TRIM(tanggal_pelaksanaan)::INT
+            WHEN TRIM(tanggal_mulai) ~ '^[0-9]+$'
+              THEN DATE '1899-12-30' + TRIM(tanggal_mulai)::INT
 
             -- kosong
-            WHEN TRIM(tanggal_pelaksanaan) = ''
+            WHEN TRIM(tanggal_mulai) = ''
               THEN NULL
 
             -- ISO date string (YYYY-MM-DD)
-            WHEN TRIM(tanggal_pelaksanaan) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-              THEN TRIM(tanggal_pelaksanaan)::DATE
+            WHEN TRIM(tanggal_mulai) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+              THEN TRIM(tanggal_mulai)::DATE
 
             -- fallback aman
             ELSE NULL
           END
         )::DATE,
+        (
+          CASE
+            -- Excel serial number
+            WHEN TRIM(tanggal_selesai) ~ '^[0-9]+$'
+              THEN DATE '1899-12-30' + TRIM(tanggal_selesai)::INT
 
-        TRIM(jenjang_peserta),
-        TRIM(pendidikan_terakhir),
+            -- kosong
+            WHEN TRIM(tanggal_selesai) = ''
+              THEN NULL
+
+            -- ISO date string (YYYY-MM-DD)
+            WHEN TRIM(tanggal_selesai) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+              THEN TRIM(tanggal_selesai)::DATE
+
+            -- fallback aman
+            ELSE NULL
+          END
+        )::DATE,
+        TRIM(penanggung_jawab),
+        TRIM(tim),
+        NULLIF(TRIM(tahun), '')::INT,
         NOW(),
         NOW()
       FROM kegiatan_staging
