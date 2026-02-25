@@ -453,18 +453,28 @@ const uploadPeserta = async (req, res) => {
   }
 };
 
+
 const uploadPpg = async (req, res) => {
   const filePath = req.file?.path;
 
   if (!filePath)
     return res.status(400).json({ message: "File wajib diupload" });
+  const filename = req.file.originalname;
+  const yearMatch = filename.match(/(20\d{2})/);
 
-  const ext = path.extname(req.file.originalname).toLowerCase();
+  if (!yearMatch) {
+    return res.status(400).json({
+      message: "Nama file harus mengandung tahun. contoh: ppg_2025.xlsx",
+    });
+  }
+
+  const tahun = parseInt(yearMatch[1]);
+
+  const ext = path.extname(filename).toLowerCase();
   const client = await pool.connect();
   const tempCsv = ext === ".xlsx" ? filePath + ".csv" : filePath;
 
   try {
-    /* XLSX → CSV */
     if (ext === ".xlsx") {
       const workbook = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
       const csv = fs.createWriteStream(tempCsv);
@@ -476,7 +486,9 @@ const uploadPpg = async (req, res) => {
           if (row.number === 1) {
             headers = row.values
               .slice(1)
-              .map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
+              .map((h) =>
+                String(h).toLowerCase().replace(/\s+/g, "_")
+              );
 
             csv.write(headers.join(",") + "\n");
             continue;
@@ -498,61 +510,113 @@ const uploadPpg = async (req, res) => {
       await waitFinish(csv);
     }
 
-    /* COPY */
     await client.query("BEGIN");
-
     await client.query(`
-        CREATE TEMP TABLE ppg_staging
-        (LIKE ppg INCLUDING DEFAULTS)
-        `);
-
+      CREATE TEMP TABLE ppg_staging AS
+      SELECT
+        no,
+        nama_lengkap,
+        no_ukg,
+        no_hp,
+        nama_sekolah,
+        npsn_sekolah,
+        jenjang_sekolah,
+        provinsi_sekolah,
+        kota_kab_sekolah,
+        status_kesediaan,
+        waktu_isi_kesediaan,
+        kode_bs_ppg,
+        bidang_studi_ppg,
+        lptk,
+        status_plotting,
+        alasan,
+        status_konfirmasi_email,
+        waktu_konfirmasi_email,
+        email_konfirmasi,
+        tahap
+      FROM ppg
+      WHERE false;
+    `);
     const copyStream = client.query(
       copyFrom(`
-            COPY ppg_staging
-            FROM STDIN
-            WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
-        `),
+        COPY ppg_staging
+        FROM STDIN
+        WITH (FORMAT csv, HEADER true, ENCODING 'UTF8')
+      `)
     );
 
     fs.createReadStream(tempCsv).pipe(copyStream);
     await waitFinish(copyStream);
 
-    /* UPSERT */
-    await client.query(`
-        INSERT INTO ppg
+    await client.query(
+      `
+      INSERT INTO ppg (
+        no,
+        nama_lengkap,
+        no_ukg,
+        no_hp,
+        nama_sekolah,
+        npsn_sekolah,
+        jenjang_sekolah,
+        provinsi_sekolah,
+        kota_kab_sekolah,
+        status_kesediaan,
+        waktu_isi_kesediaan,
+        kode_bs_ppg,
+        bidang_studi_ppg,
+        lptk,
+        status_plotting,
+        alasan,
+        status_konfirmasi_email,
+        waktu_konfirmasi_email,
+        email_konfirmasi,
+        tahap,
+        tahun
+      )
+      SELECT
+        s.*,
+        $1 AS tahun
+      FROM (
         SELECT DISTINCT ON (no_ukg) *
         FROM ppg_staging
         ORDER BY no_ukg
-        ON CONFLICT (no_ukg)
-        DO UPDATE SET
-            nama_lengkap              = EXCLUDED.nama_lengkap,
-            no_hp                     = EXCLUDED.no_hp,
-            nama_sekolah              = EXCLUDED.nama_sekolah,
-            npsn_sekolah              = EXCLUDED.npsn_sekolah,
-            jenjang_sekolah           = EXCLUDED.jenjang_sekolah,
-            provinsi_sekolah          = EXCLUDED.provinsi_sekolah,
-            kota_kab_sekolah          = EXCLUDED.kota_kab_sekolah,
-            status_kesediaan          = EXCLUDED.status_kesediaan,
-            waktu_isi_kesediaan       = EXCLUDED.waktu_isi_kesediaan,
-            kode_bs_ppg               = EXCLUDED.kode_bs_ppg,
-            bidang_studi_ppg          = EXCLUDED.bidang_studi_ppg,
-            lptk                      = EXCLUDED.lptk,
-            status_plotting           = EXCLUDED.status_plotting,
-            alasan                    = EXCLUDED.alasan,
-            status_konfirmasi_email   = EXCLUDED.status_konfirmasi_email,
-            waktu_konfirmasi_email    = EXCLUDED.waktu_konfirmasi_email,
-            email_konfirmasi          = EXCLUDED.email_konfirmasi,
-            tahap                     = EXCLUDED.tahap
-        `);
+      ) s
+      ON CONFLICT (no_ukg, tahun)
+      DO UPDATE SET
+        nama_lengkap            = EXCLUDED.nama_lengkap,
+        no_hp                   = EXCLUDED.no_hp,
+        nama_sekolah            = EXCLUDED.nama_sekolah,
+        npsn_sekolah            = EXCLUDED.npsn_sekolah,
+        jenjang_sekolah         = EXCLUDED.jenjang_sekolah,
+        provinsi_sekolah        = EXCLUDED.provinsi_sekolah,
+        kota_kab_sekolah        = EXCLUDED.kota_kab_sekolah,
+        status_kesediaan        = EXCLUDED.status_kesediaan,
+        waktu_isi_kesediaan     = EXCLUDED.waktu_isi_kesediaan,
+        kode_bs_ppg             = EXCLUDED.kode_bs_ppg,
+        bidang_studi_ppg        = EXCLUDED.bidang_studi_ppg,
+        lptk                    = EXCLUDED.lptk,
+        status_plotting         = EXCLUDED.status_plotting,
+        alasan                  = EXCLUDED.alasan,
+        status_konfirmasi_email = EXCLUDED.status_konfirmasi_email,
+        waktu_konfirmasi_email  = EXCLUDED.waktu_konfirmasi_email,
+        email_konfirmasi        = EXCLUDED.email_konfirmasi,
+        tahap                   = EXCLUDED.tahap;
+      `,
+      [tahun]
+    );
 
     await client.query("COMMIT");
 
     fs.unlinkSync(filePath);
-    ext === ".xlsx" && fs.unlinkSync(tempCsv);
+    if (ext === ".xlsx") fs.unlinkSync(tempCsv);
 
-    res.json({ message: "Upload data PPG berhasil" });
+    res.json({
+      message: `Upload berhasil untuk tahun ${tahun}`,
+    });
+
   } catch (err) {
     await client.query("ROLLBACK");
+    console.error(err);
     res.status(500).json({ message: err.message });
   } finally {
     client.release();
