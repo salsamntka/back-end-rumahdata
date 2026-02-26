@@ -3,7 +3,7 @@ import { register, login, createUser } from "../controllers/authController.js";
 import checkPermission from "../src/middleware/checkPermissionMiddleware.js";
 import {
   authenticateToken,
-  superAdminOnly,
+  adminOnly,
 } from "../src/middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -14,7 +14,7 @@ router.post(
   "/create-user",
   authenticateToken,
   checkPermission(),
-  superAdminOnly,
+  adminOnly,
   createUser,
 );
 
