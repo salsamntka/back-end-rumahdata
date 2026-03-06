@@ -31,6 +31,27 @@ export const getPTK = async (req, res) => {
   }
 };
 
+export const getPtkStatistik = async (req, res) => {
+  try {
+    // Only select the required columns that actually exist in the DB schema
+    const dataQuery = `
+      SELECT ptk_id, sekolah_id, kabupaten, jenis_kelamin, 
+             status_kepegawaian, jenis_ptk, jabatan_ptk
+      FROM public.ptk
+    `;
+
+    const [dataResult] = await Promise.all([pool.query(dataQuery)]);
+
+    res.json({
+      totalData: dataResult.rows.length,
+      data: dataResult.rows,
+    });
+  } catch (err) {
+    console.error("PTK STATISTIK ERROR:", err);
+    res.status(500).json({ message: "Gagal memproses data statistik PTK" });
+  }
+};
+
 export const searchPTK = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;

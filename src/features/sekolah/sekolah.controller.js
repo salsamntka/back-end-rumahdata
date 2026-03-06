@@ -92,6 +92,9 @@ export const getSekolahDetail = async (req, res) => {
     try {
         const { sekolah_id } = req.params;
         const search = req.query.query || "";
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
 
         const sekolahQuery = `
       SELECT nama, npsn, alamat_jalan, email 
@@ -107,11 +110,12 @@ export const getSekolahDetail = async (req, res) => {
         const { nama: namaSekolah, npsn: npsnSekolah, alamat_jalan, email } = sekolahRes.rows[0];
 
         const dataQuery = `
-      SELECT ptk_id, nama, semester, nik, nip, jenis_ptk 
+      SELECT ptk_id, nama, semester, nik, nip, jenis_ptk, status_kepegawaian, jabatan_ptk
       FROM public.ptk
       WHERE LOWER(sekolah_id) = LOWER($1) 
       AND (nama ILIKE $2)
       ORDER BY nama ASC
+      LIMIT $3 OFFSET $4
     `;
 
         const countQuery = `
@@ -124,11 +128,12 @@ export const getSekolahDetail = async (req, res) => {
         const values = [sekolah_id, searchParam];
 
         const [dataResult, countResult] = await Promise.all([
-            pool.query(dataQuery, values),
+            pool.query(dataQuery, [...values, limit, offset]),
             pool.query(countQuery, values),
         ]);
 
         const totalData = parseInt(countResult.rows[0].count);
+        const totalPages = Math.ceil(totalData / limit);
 
         res.json({
             sekolah_terpilih: namaSekolah,
@@ -137,6 +142,9 @@ export const getSekolahDetail = async (req, res) => {
             npsn: npsnSekolah,
             sekolah_id: sekolah_id.toLowerCase(),
             totalData: totalData,
+            totalPages: totalPages,
+            page: page,
+            limit: limit,
             data_ptk: dataResult.rows,
         });
     } catch (err) {
