@@ -11,6 +11,7 @@ import ppgRoutes from "./src/features/ppg/ppg.routes.js";
 import uploadRoutes from "./src/features/upload/upload.routes.js";
 import splitsdataRoutes from "./src/features/splitsdata/splitsdata.routes.js";
 import userTeamRoutes from "./src/features/user_team/user_team.routes.js";
+import deskripsiRoutes from "./src/features/deskripsi/deskripsi.routes.js";
 import { connectDB } from "./src/config/db.js";
 
 dotenv.config();
@@ -30,6 +31,7 @@ app.use("/api", ppgRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api/splitsdata", splitsdataRoutes);
 app.use("/api", userTeamRoutes);
+app.use("/api/deskripsi", deskripsiRoutes);
 // root endpoint
 app.get("/", (req, res) => {
   res.send("Server berjalan...");
