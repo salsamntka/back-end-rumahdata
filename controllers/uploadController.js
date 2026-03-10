@@ -405,11 +405,15 @@ const uploadPeserta = async (req, res) => {
           input: fs.createReadStream(filePath),
         });
         for await (const line of rl) {
-          if (line.includes(";")) {
-            delimiter = ";";
-          }
-          break; // Cukup baca baris pertama lalu hentikan loop
-        }
+  if (line.includes(";")) {
+    delimiter = ";";
+  } else if (line.includes("\t")) {
+    delimiter = "\t";
+  } else {
+    delimiter = ",";
+  }
+  break;
+}
       }
 
     /* =========================
@@ -430,10 +434,33 @@ const uploadPeserta = async (req, res) => {
       )
     `);
 
-    // Masukkan delimiter dinamis ke perintah COPY
+    const firstLine = fs.readFileSync(tempCsv, "utf8").split("\n")[0];
+    const headers = firstLine
+      .split(delimiter)
+      .map((h) => h.replace(/"/g, "").trim().toLowerCase());
+
+    // Kolom yang diperbolehkan
+    const allowedColumns = [
+      "nama",
+      "kabupaten",
+      "instansi",
+      "jabatan",
+      "alamat",
+      "jenjang",
+      "peran",
+    ];
+
+    // Ambil hanya kolom yang valid
+    const validColumns = headers.filter((h) => allowedColumns.includes(h));
+
+    if (validColumns.length === 0) {
+      throw new Error("Tidak ada kolom peserta yang valid pada file");
+    }
+
+    // COPY dengan kolom dinamis
     const copyStream = client.query(
       copyFrom(`
-        COPY peserta_staging (nama, kabupaten, instansi, jabatan, alamat, jenjang, peran)
+        COPY peserta_staging (${validColumns.join(",")})
         FROM STDIN WITH (FORMAT csv, HEADER true, ENCODING 'UTF8', DELIMITER '${delimiter}')
       `),
     );
